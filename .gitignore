@@ -1,0 +1,76 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Cursor/Agent artifacts
+.cursor/
+.agent-tools/
+
+# Python (backend)
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.eggs/
+*.egg-info/
+.env
+.venv/
+venv/
+backend/venv/
+
+# Python build
+build/
+dist/
+
+# Flask instance
+instance/
+
+# Models & large binaries
+backend/model.pkl
+backend/models/*.pkl
+backend/models/*.joblib
+backend/models/*.bin
+
+# User uploads
+backend/uploads/
+uploads/
+
+# Logs
+*.log
+logs/
+
+# Node (frontend)
+frontend/node_modules/
+frontend/.vite/
+frontend/dist/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Cache
+.cache/
+.tmp/
+.temp/
+
+# Images/generated
+*.webp
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Local environment overrides
+frontend/.env*
+backend/.env*
+
