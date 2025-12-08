@@ -14,6 +14,7 @@ export default function Preview() {
   const [html, setHtml] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [downloading, setDownloading] = useState(false)
   const [showChanges, setShowChanges] = useState(true)
 
   const canPreview = useMemo(() => (originalText || '').length > 0 && (updatedText || '').length > 0, [originalText, updatedText])
@@ -30,6 +31,7 @@ export default function Preview() {
 
   async function handleDownload(format) {
     try {
+      setDownloading(true)
       setError('')
       if (!canPreview) return
       const blob = await downloadUpdated(updatedText, format)
@@ -48,6 +50,8 @@ export default function Preview() {
       URL.revokeObjectURL(url)
     } catch (e) {
       setError(e.message || 'Download failed')
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -120,13 +124,13 @@ export default function Preview() {
               <button className="btn" onClick={() => navigate(-1)}>Back</button>
               {primaryIsDocx ? (
                 <>
-                  <button className="btn" onClick={() => handleDownload('pdf')} disabled={!updatedText}>Download PDF</button>
-                  <button className="btn btn-primary" onClick={() => handleDownload('docx')} disabled={!updatedText}>Download Word</button>
+                  <button className="btn" onClick={() => handleDownload('pdf')} disabled={!updatedText || downloading}>{downloading ? 'Downloading…' : 'Download PDF'}</button>
+                  <button className="btn btn-primary" onClick={() => handleDownload('docx')} disabled={!updatedText || downloading}>{downloading ? 'Downloading…' : 'Download Word'}</button>
                 </>
               ) : (
                 <>
-                  <button className="btn btn-primary" onClick={() => handleDownload('pdf')} disabled={!updatedText}>Download PDF</button>
-                  <button className="btn" onClick={() => handleDownload('docx')} disabled={!updatedText}>Download Word</button>
+                  <button className="btn btn-primary" onClick={() => handleDownload('pdf')} disabled={!updatedText || downloading}>{downloading ? 'Downloading…' : 'Download PDF'}</button>
+                  <button className="btn" onClick={() => handleDownload('docx')} disabled={!updatedText || downloading}>{downloading ? 'Downloading…' : 'Download Word'}</button>
                 </>
               )}
             </div>

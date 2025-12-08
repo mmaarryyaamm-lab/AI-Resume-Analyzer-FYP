@@ -19,7 +19,8 @@ def extract_entities(resume_text):
         "phone": None,
         "education": [],
         "experience": [],
-        "skills": []
+        "skills": [],
+        "projects": []
     }
 
     # Extract contact info
@@ -56,5 +57,53 @@ def extract_entities(resume_text):
         for keyword in skills_keywords:
             if keyword in line and line not in entities["skills"]:
                 entities["skills"].append(line.strip())
+
+    # Extract 'Projects' section using header-based parsing with common synonyms
+    original_lines = resume_text.split('\n')
+    lowered_lines = [ln.lower() for ln in original_lines]
+    project_headers = {
+        "projects",
+        "project highlights",
+        "project experience",
+        "personal projects",
+        "featured projects",
+        "portfolio",
+        "case studies"
+    }
+
+    def is_header(candidate: str) -> bool:
+        stripped = candidate.strip()
+        # Consider a line a header if it's mostly uppercase letters/spaces/symbols and not a bullet
+        if not stripped:
+            return False
+        if stripped.startswith(('-', '•', '*')):
+            return False
+        has_alpha = any(ch.isalpha() for ch in stripped)
+        if not has_alpha:
+            return False
+        # Treat ALL-CAPS (with allowed symbols) as headers
+        return stripped == stripped.upper()
+
+    in_projects = False
+    collected_any = False
+    for idx, low_line in enumerate(lowered_lines):
+        candidate = low_line.strip().rstrip(':')
+        if not in_projects and candidate in project_headers:
+            in_projects = True
+            continue
+
+        if in_projects:
+            # Stop if we hit another obvious section header
+            if is_header(original_lines[idx]):
+                break
+            content = original_lines[idx].strip()
+            if content:
+                entities["projects"].append(content)
+                collected_any = True
+
+    # If we detected a projects header but failed to collect lines (e.g., compact formatting),
+    # mark presence with a placeholder so downstream checks don't flag it as missing.
+    if in_projects and not collected_any:
+        entities["projects"].append("Projects section detected")
 
     return entities

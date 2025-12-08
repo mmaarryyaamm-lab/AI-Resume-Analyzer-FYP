@@ -73,7 +73,7 @@ def upload_resume():
             # Avoid 500 on tricky PDFs/Docs; return empty text with a warning instead
             warning = 'File uploaded but text extraction failed. Try another file format.'
 
-        return jsonify({'success': True, 'resume_text': (text or '')[:2000], 'warning': warning})
+        return jsonify({'success': True, 'resume_text': (text or ''), 'warning': warning})
     except Exception as err:
         logger.exception('Unexpected error in /upload: %s', err)
         return jsonify({'success': False, 'error': 'Unexpected server error'}), 200

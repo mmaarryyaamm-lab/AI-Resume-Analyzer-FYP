@@ -37,9 +37,13 @@ export default function Home() {
     const filtered = lines.filter((ln) => {
       const t = ln.trim()
       if (!t) return false
+      // Non-actionable or advisory lines should not be applied to CV
+      if (/^✅/u.test(t)) return false
       if (/^⚠️/u.test(t)) return false
       if (/^🧹/u.test(t)) return false
       if (/^✏️/u.test(t)) return false
+      if (/^🧠/u.test(t)) return false
+      if (/^🔄/u.test(t)) return false
       if (/^your resume is missing/i.test(t)) return false
       if (/^grammar suggestions:/i.test(t)) return false
       return true
@@ -354,6 +358,12 @@ export default function Home() {
       else addition = String(rewritten)
     }
 
+    // Do not proceed if there is nothing actionable to apply
+    if (!String(addition || '').trim()) {
+      setError('No actionable changes to apply.')
+      return
+    }
+
     const header = `\n\n### ${section}\n`
     const nextDraft = (cvDraft || '') + header + addition
     setCvDraft(nextDraft)
@@ -397,11 +407,18 @@ export default function Home() {
 
   async function downloadUpdatedNow(format) {
     try {
+      setLoading('download')
       const base = uploadResult?.resume_text || ''
       const merged = lastAddition ? parseAndInsert(base, lastAddition, targetSection) : base
       const finalText = (composedText || merged).trim()
       if (!finalText) return
       const blob = await downloadUpdated(finalText, format)
+      // Handle server-side JSON error bodies masquerading as files
+      if (blob && blob.type && blob.type.indexOf('application/json') !== -1) {
+        const txt = await blob.text()
+        const msg = (() => { try { return (JSON.parse(txt).error || txt) } catch { return txt } })()
+        throw new Error(msg || 'Download failed')
+      }
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -412,6 +429,8 @@ export default function Home() {
       URL.revokeObjectURL(url)
     } catch (e) {
       setError(e.message || 'Download failed')
+    } finally {
+      setLoading('')
     }
   }
 
@@ -546,17 +565,23 @@ export default function Home() {
             <p>Upload your resume and add a job description. Get instant scores, gaps, and suggestions.</p>
             <div className="card" style={{ padding: 16, marginTop: 16 }}>
               <div className="upload-area">
+                {loading === 'upload' && (
+                  <div className="upload-loading" role="status" aria-live="polite">
+                    <div className="spinner" aria-hidden="true"></div>
+                    <div>Uploading…</div>
+                  </div>
+                )}
                 <div className="upload-body">
                   <h3>Upload your resume to get started</h3>
                   <button className="upload-button" onClick={() => document.getElementById('resume-input')?.click()}>
                     Upload your resume
                   </button>
-                  {uploadResult?.resume_text && (
-                    <button className="btn" style={{ marginLeft: 8 }} onClick={handleRemoveCv}>
+                  {(resumeFile || uploadResult?.resume_text) && (
+                    <button className="btn" style={{ marginLeft: 8 }} onClick={handleRemoveCv} disabled={!!loading}>
                       Remove CV
                     </button>
                   )}
-                  <input id="resume-input" className="upload-hidden" type="file" accept=".pdf,.docx" onChange={(e) => {
+                  <input id="resume-input" className="upload-hidden" type="file" accept=".pdf,.docx" onChange={async (e) => {
                     const file = e.target.files?.[0] || null
                     setResumeFile(file)
                     setError('')
@@ -567,8 +592,26 @@ export default function Home() {
                       else if (lower.endsWith('.docx')) setUploadedFormat('docx')
                       else setUploadedFormat('')
                     }
+                    // Auto-upload for better UX
+                    if (file) {
+                      try {
+                        setLoading('upload')
+                        const res = await uploadResume(file)
+                        if (res && res.error) {
+                          setError(String(res.error))
+                        }
+                        setUploadResult(res)
+                      } catch (err) {
+                        setError(err?.message || 'Upload failed')
+                      } finally {
+                        setLoading('')
+                      }
+                    }
                   }} />
-                  <div className="upload-help">as .pdf or .docx file</div>
+                  <div className="upload-help">
+                    as .pdf or .docx file
+                    {resumeFile ? ` — Selected: ${resumeFile.name}` : ''}
+                  </div>
                 </div>
               </div>
               <div className="grid" style={{ gap: 12, marginTop: 12 }}>
@@ -617,12 +660,7 @@ export default function Home() {
                 )}
               </div>
 
-              {uploadResult?.resume_text && (
-                <div className="resume-preview card">
-                  <div className="preview-header">Resume Preview (first 2000 chars)</div>
-                  <pre>{uploadResult.resume_text}</pre>
-                </div>
-              )}
+              {/* Left-side full preview removed; preview is shown compact on the right */}
 
               {analysis && (
                 <div className="card" style={{ marginTop: 16 }}>
@@ -661,7 +699,17 @@ export default function Home() {
                   <div className="preview-header">AI Suggestions</div>
                   {renderAiSuggestions(aiFeedback)}
                   <div className="cta-actions" style={{ justifyContent: 'flex-end' }}>
-                    <button className="btn btn-primary" onClick={() => applyToCv('AI Suggestions')}>Add these changes to my CV</button>
+                    {(() => {
+                      try {
+                        const t = typeof aiFeedback === 'string' ? aiFeedback : JSON.stringify(aiFeedback, null, 2)
+                        const cleaned = cleanSuggestion(t).trim()
+                        return cleaned
+                          ? (<button className="btn btn-primary" onClick={() => applyToCv('AI Suggestions')}>Add these changes to my CV</button>)
+                          : (<div className="muted">No actionable changes to apply.</div>)
+                      } catch {
+                        return (<div className="muted">No actionable changes to apply.</div>)
+                      }
+                    })()}
                   </div>
                 </div>
               )}
@@ -689,35 +737,10 @@ export default function Home() {
 
             <div className="hero-art" aria-hidden="true">
               {uploadResult?.resume_text ? (
-                <div className="card insight-panel">
-                  <div className="insight-header">
-                    <div className="insight-icon" aria-hidden="true">
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l2.39 4.84L20 7.27l-3.8 3.7.9 5.24L12 14.77 6.9 16.2l.9-5.24L4 7.27l5.61-.43L12 2z" fill="currentColor"/></svg>
-                    </div>
-                    <div>
-                      <strong>AI Suggestions</strong>
-                      <div className="muted">Quick wins to polish your resume</div>
-                    </div>
-                  </div>
-                  <ul className="insight-list">
-                    <li>
-                      <span className="badge ok" aria-hidden="true">✓</span>
-                      Use strong verbs at the start of bullets
-                    </li>
-                    <li>
-                      <span className="badge info" aria-hidden="true">A</span>
-                      Quantify impact with numbers where possible
-                    </li>
-                    <li>
-                      <span className="badge warn" aria-hidden="true">!</span>
-                      Keep lines under 2 sentences for readability
-                    </li>
-                    <li>
-                      <span className="badge key" aria-hidden="true">#</span>
-                      Match skills from the job description
-                    </li>
-                  </ul>
-                  <div className="insight-actions">
+                <div className="cv-mini">
+                  <div className="preview-header">Resume Preview</div>
+                  <pre>{uploadResult.resume_text}</pre>
+                  <div className="insight-actions" style={{ marginTop: 10 }}>
                     <button className="btn btn-primary" onClick={handleSuggest} disabled={!!loading}>Get AI Suggestions</button>
                     <button className="btn" onClick={handleRewrite} disabled={!!loading}>Rewrite Bullets</button>
                   </div>
@@ -1076,10 +1099,10 @@ export default function Home() {
                 <li className="ok">Download as Word or PDF (clean, no highlights)</li>
               </ul>
             </div>
-            <div className="modal-actions">
-              <button className="btn" onClick={() => { const base = uploadResult?.resume_text || ''; const merged = parseAndInsert(base, lastAddition, targetSection); const finalText = (merged + (cvDraft ? `\n\n--- Added by AI Resume Analyzer ---\n${cvDraft}` : '')).trim(); setComposedText(finalText); setShowAdded(false); openPreview(finalText); }}>Preview with highlights</button>
-              <button className="btn" onClick={() => downloadUpdatedNow('pdf')}>Download PDF</button>
-              <button className="btn btn-primary" onClick={() => downloadUpdatedNow('docx')}>Download Word</button>
+              <div className="modal-actions">
+              <button className="btn" onClick={() => { const base = uploadResult?.resume_text || ''; const merged = parseAndInsert(base, lastAddition, targetSection); const finalText = (merged + (cvDraft ? `\n\n--- Added by AI Resume Analyzer ---\n${cvDraft}` : '')).trim(); setComposedText(finalText); setShowAdded(false); openPreview(finalText); }} disabled={!!loading}>Preview with highlights</button>
+              <button className="btn" onClick={() => downloadUpdatedNow('pdf')} disabled={!!loading}>{loading === 'download' ? 'Downloading…' : 'Download PDF'}</button>
+              <button className="btn btn-primary" onClick={() => downloadUpdatedNow('docx')} disabled={!!loading}>{loading === 'download' ? 'Downloading…' : 'Download Word'}</button>
             </div>
           </div>
         </div>
