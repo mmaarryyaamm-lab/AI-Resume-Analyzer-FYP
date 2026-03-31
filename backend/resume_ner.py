@@ -1,13 +1,24 @@
 # resume_ner.py
 
-import spacy
 import re
 
+try:
+    import spacy
+except Exception:
+    spacy = None
+
 # Load spaCy model
-nlp = spacy.load("en_core_web_sm")
+try:
+    nlp = spacy.load("en_core_web_sm") if spacy is not None else None
+except Exception:
+    try:
+        nlp = spacy.blank("en") if spacy is not None else None
+    except Exception:
+        nlp = None
 
 def extract_entities(resume_text):
-    doc = nlp(resume_text)
+    resume_text = str(resume_text or "")
+    doc = nlp(resume_text) if nlp is not None else None
 
     education_keywords = ["bachelor", "master", "bsc", "msc", "phd", "matric", "intermediate", "university", "college"]
     experience_keywords = ["intern", "developer", "engineer", "manager", "assistant", "analyst", "freelancer", "worked", "experience"]
@@ -24,13 +35,14 @@ def extract_entities(resume_text):
     }
 
     # Extract contact info
-    for ent in doc.ents:
-        if ent.label_ == "PERSON" and not entities["name"]:
-            entities["name"] = ent.text
-        elif ent.label_ == "EMAIL":
-            entities["email"] = ent.text
-        elif ent.label_ == "PHONE":
-            entities["phone"] = ent.text
+    if doc is not None:
+        for ent in doc.ents:
+            if ent.label_ == "PERSON" and not entities["name"]:
+                entities["name"] = ent.text
+            elif ent.label_ == "EMAIL":
+                entities["email"] = ent.text
+            elif ent.label_ == "PHONE":
+                entities["phone"] = ent.text
 
     # Fallback for email/phone using regex
     if not entities["email"]:

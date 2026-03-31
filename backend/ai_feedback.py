@@ -1,16 +1,30 @@
 # ai_feedback.py
 
-import language_tool_python
-import spacy
+try:
+    import language_tool_python
+except Exception:
+    language_tool_python = None
+
+try:
+    import spacy
+except Exception:
+    spacy = None
 from resume_ner import extract_entities
 
 # Load tools
 # Prefer the public API to avoid requiring a local Java install
 try:
-    tool = language_tool_python.LanguageToolPublicAPI('en-US')
+    tool = language_tool_python.LanguageToolPublicAPI('en-US') if language_tool_python is not None else None
 except Exception:
     tool = None
-nlp = spacy.load("en_core_web_sm")
+
+try:
+    nlp = spacy.load("en_core_web_sm") if spacy is not None else None
+except Exception:
+    try:
+        nlp = spacy.blank("en") if spacy is not None else None
+    except Exception:
+        nlp = None
 
 # Weak phrases and their rephrasings
 weak_phrases = {
@@ -24,6 +38,8 @@ weak_phrases = {
 strong_action_verbs = ["developed", "led", "designed", "created", "built", "managed", "implemented", "analyzed"]
 
 def generate_ai_suggestions(resume_text, jd_text=None):
+    resume_text = str(resume_text or "")
+    jd_text = str(jd_text or "")
     suggestions = []
 
     # ✅ 1. NER Extraction
@@ -41,15 +57,15 @@ def generate_ai_suggestions(resume_text, jd_text=None):
             suggestions.append(f"💡 Weak phrase detected: '{phrase}' → Suggestion: {tip}")
 
     # ✅ 4. Strong action verbs
-    doc = nlp(resume_text.lower())
-    tokens = [token.text for token in doc]
+    doc = nlp(resume_text.lower()) if nlp is not None else None
+    tokens = [token.text for token in doc] if doc is not None else resume_text.lower().split()
     used_verbs = [v for v in strong_action_verbs if v in tokens]
     if not used_verbs:
         suggestions.append("⚠️ No strong action verbs found. Start bullet points with verbs like 'developed', 'led', 'implemented'.")
 
     # ✅ 5. Passive voice (simple)
     passive_aux = ["was", "were", "been", "being", "is", "are", "be"]
-    passive_count = sum(1 for token in doc if token.text in passive_aux and token.pos_ == "AUX")
+    passive_count = sum(1 for token in doc if token.text in passive_aux and token.pos_ == "AUX") if doc is not None else 0
     if passive_count > 5:
         suggestions.append("🔄 Your resume may overuse passive voice. Try to use active voice with strong verbs.")
 
@@ -65,8 +81,8 @@ def generate_ai_suggestions(resume_text, jd_text=None):
 
     # ✅ 7. JD vs Resume skill match
     if jd_text:
-        jd_doc = nlp(jd_text.lower())
-        jd_keywords = set([token.text for token in jd_doc if token.pos_ in ['NOUN', 'PROPN', 'ADJ'] and len(token.text) > 2])
+        jd_doc = nlp(jd_text.lower()) if nlp is not None else None
+        jd_keywords = set([token.text for token in jd_doc if token.pos_ in ['NOUN', 'PROPN', 'ADJ'] and len(token.text) > 2]) if jd_doc is not None else set(jd_text.lower().split())
         resume_skills_text = " ".join(ner_data.get("skills", []))
         resume_keywords = set(resume_skills_text.lower().split())
 

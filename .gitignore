@@ -74,3 +74,13 @@ pnpm-debug.log*
 frontend/.env*
 backend/.env*
 
+# Local databases
+backend/data/*.db
+backend/data/*.db-journal
+
+# SonarQube generated/runtime assets
+.scannerwork/
+sonarqube/
+sonarqube-*/
+tools/sonar-scanner/
+

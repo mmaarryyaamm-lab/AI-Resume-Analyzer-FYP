@@ -4,11 +4,10 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 import Home from './pages/Home.jsx'
-import Templates from './pages/Templates.jsx'
 import Builder from './pages/Builder.jsx'
-import Pricing from './pages/Pricing.jsx'
 import Faq from './pages/Faq.jsx'
 import Preview from './pages/Preview.jsx'
+import Privacy from './pages/Privacy.jsx'
 
 const router = createBrowserRouter([
   {
@@ -16,10 +15,9 @@ const router = createBrowserRouter([
     element: <App />,
     children: [
       { index: true, element: <Home /> },
-      { path: 'templates', element: <Templates /> },
       { path: 'builder', element: <Builder /> },
-      
       { path: 'faq', element: <Faq /> },
+      { path: 'privacy', element: <Privacy /> },
       { path: 'preview', element: <Preview /> },
     ],
   },
