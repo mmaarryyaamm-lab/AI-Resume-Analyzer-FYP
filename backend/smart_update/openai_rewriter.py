@@ -377,6 +377,130 @@ def rewrite_sections_with_openai(
     return filtered or _fallback_rewrite_sections(sections, job_description)
 
 
+def _build_apply_suggestions_system_prompt() -> str:
+    return """You are an expert resume editor. Your ONLY job is to apply the provided suggestions to the resume content.
+
+CRITICAL FORMATTING RULES — you MUST follow these exactly:
+- Preserve the EXACT formatting of the original resume: bullet style (dashes, dots, asterisks), indentation, line breaks, spacing, heading casing, and paragraph structure.
+- If the original uses "- " for bullets, the output MUST use "- " for bullets. If it uses "* ", use "* ". If it uses "• ", use "• ".
+- Do NOT add, remove, or change any section headings.
+- Do NOT reorder content or merge sections.
+- Do NOT add information, skills, tools, technologies, or experience that is NOT already present in the resume.
+- Do NOT invent dates, company names, job titles, or achievements.
+- Only modify the specific text that the suggestions target. Leave everything else EXACTLY as-is.
+- If a suggestion cannot be applied without inventing information, skip it.
+- Preserve all whitespace patterns: if the original has blank lines between sections, keep them. If bullets have no blank lines between them, keep that too.
+
+Your output must look like a direct edit of the original — a human comparing them should see ONLY the targeted improvements, nothing else changed."""
+
+
+def _build_apply_suggestions_user_prompt(
+    sections: List[Dict],
+    suggestions: str,
+    job_description: str = '',
+) -> str:
+    prompt_parts = []
+
+    prompt_parts.append('SUGGESTIONS TO APPLY:\n')
+    prompt_parts.append(suggestions.strip())
+    prompt_parts.append('')
+
+    if job_description:
+        prompt_parts.append(f'TARGET JOB DESCRIPTION (for context only — do NOT add skills or tools from this):\n{job_description[:1500]}\n')
+
+    prompt_parts.append('RESUME SECTIONS (apply the suggestions to these while preserving exact formatting):\n')
+
+    for sec in sections:
+        if sec.get('id') == 'personal_info':
+            continue
+        content = sec.get('content', '').strip()
+        if not content:
+            continue
+        heading = sec.get('heading', sec.get('id', 'Section'))
+        prompt_parts.append(f'=== SECTION: {heading} (id: {sec["id"]}) ===')
+        prompt_parts.append(content)
+        prompt_parts.append('')
+
+    prompt_parts.append(
+        """Apply ONLY the suggestions listed above. For each section you modify, return the COMPLETE updated section content preserving exact original formatting.
+
+Return your response as a JSON object where each key is the section id and the value is the updated content string.
+Only include sections that you actually changed. Do not include unchanged sections.
+Do not include personal_info.
+Return ONLY valid JSON."""
+    )
+
+    return '\n'.join(prompt_parts)
+
+
+def apply_suggestions_with_openai(
+    sections: List[Dict],
+    suggestions: str,
+    job_description: str = '',
+    model: str = 'gpt-4o-mini',
+) -> Dict[str, str]:
+    """Apply specific AI suggestions to resume sections while strictly preserving formatting."""
+    if not suggestions or not suggestions.strip():
+        return {}
+
+    api_key = _get_api_key()
+    if not api_key:
+        logger.warning('OpenAI API key not configured. Cannot apply suggestions.')
+        return {}
+
+    system_prompt = _build_apply_suggestions_system_prompt()
+    user_prompt = _build_apply_suggestions_user_prompt(sections, suggestions, job_description)
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': user_prompt},
+            ],
+            temperature=0.15,  # Very low — we want precise edits, not creative rewrites
+            max_tokens=4000,
+            response_format={'type': 'json_object'},
+        )
+        raw_content = response.choices[0].message.content.strip()
+    except ImportError:
+        logger.warning('openai package not installed. Falling back to direct HTTP call.')
+        try:
+            raw_content = _call_openai_via_http(api_key, model, system_prompt, user_prompt)
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, KeyError, json.JSONDecodeError) as err:
+            logger.exception('Direct OpenAI HTTP call failed for apply-suggestions: %s', err)
+            return {}
+    except Exception as err:
+        logger.exception('OpenAI call failed for apply-suggestions: %s', err)
+        return {}
+
+    try:
+        result = json.loads(raw_content)
+    except json.JSONDecodeError:
+        logger.error('Failed to parse OpenAI apply-suggestions response as JSON')
+        return {}
+
+    if not isinstance(result, dict):
+        return {}
+
+    original_ids = {s['id'] for s in sections}
+    filtered = {}
+    for key, value in result.items():
+        original_section = next((s for s in sections if s.get('id') == key), None)
+        original_content = original_section.get('content', '') if original_section else ''
+        if (
+            key in original_ids
+            and isinstance(value, str)
+            and value.strip()
+            and _is_meaningful_change(original_content, value)
+        ):
+            filtered[key] = value.strip()
+
+    return filtered
+
+
 def rewrite_single_section(
     section_id: str,
     section_content: str,

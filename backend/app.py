@@ -18,7 +18,7 @@ from ml_train import train_ats_model
 from sentence_rewriter import rewrite_sentences
 from resume_ner import extract_entities
 from smart_update.section_parser import parse_sections_from_text, parse_sections_from_docx
-from smart_update.openai_rewriter import rewrite_sections_with_openai, rewrite_single_section
+from smart_update.openai_rewriter import rewrite_sections_with_openai, rewrite_single_section, apply_suggestions_with_openai
 from smart_update.section_mapper import map_sections, compute_section_diff
 from smart_update.docx_preserver import update_docx_in_place
 from smart_update.pdf_preserver import generate_updated_pdf
@@ -699,6 +699,52 @@ def smart_rewrite_section():
         'improved_content': improved,
         'has_changes': improved.strip() != section_content.strip(),
         'diff': diff,
+    })
+
+
+# 🎯 Apply Suggestions: Take AI suggestions and apply them to resume preserving formatting
+@app.route('/apply-suggestions', methods=['POST'])
+def apply_suggestions():
+    data = request.get_json(silent=True) or {}
+    sections = data.get('sections', [])
+    suggestions = data.get('suggestions', '')
+    job_description = data.get('job_description', '')
+    model = data.get('model', 'gpt-4o-mini')
+
+    if not sections:
+        return jsonify({'error': 'No sections provided'}), 400
+    if not suggestions or not suggestions.strip():
+        return jsonify({'error': 'No suggestions provided'}), 400
+
+    try:
+        ai_results = apply_suggestions_with_openai(sections, suggestions, job_description, model)
+    except Exception as e:
+        logger.exception('Apply suggestions failed: %s', e)
+        return jsonify({'error': f'Failed to apply suggestions: {str(e)}'}), 500
+
+    if not ai_results:
+        return jsonify({
+            'success': True,
+            'mappings': [],
+            'sections_improved': 0,
+            'message': 'No applicable changes were generated from the suggestions.',
+        })
+
+    # Map AI results back to original sections (reuse existing mapping logic)
+    mappings = map_sections(sections, ai_results)
+
+    # Compute diffs for each section
+    for m in mappings:
+        if m.get('has_changes'):
+            m['diff'] = compute_section_diff(
+                m.get('original_content', ''),
+                m.get('improved_content', '')
+            )
+
+    return jsonify({
+        'success': True,
+        'mappings': mappings,
+        'sections_improved': sum(1 for m in mappings if m.get('has_changes')),
     })
 
 

@@ -93,6 +93,19 @@ export async function smartRewriteResume(sections, jobDescription, model = 'gpt-
   })
 }
 
+export async function applySuggestions(sections, suggestions, jobDescription, model = 'gpt-4o-mini') {
+  return apiFetch('/apply-suggestions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sections,
+      suggestions,
+      job_description: jobDescription || '',
+      model,
+    }),
+  })
+}
+
 export async function previewDiff(originalText, updatedText) {
   return apiFetch('/preview-diff', {
     method: 'POST',

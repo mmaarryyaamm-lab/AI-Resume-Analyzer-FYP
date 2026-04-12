@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import './styles.css'
+import './index.css'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import AuthModal from './components/AuthModal'
@@ -126,7 +126,7 @@ export default function App() {
   }), [user, history, sessionLoading])
 
   return (
-    <div className="app-shell">
+    <div className="flex min-h-screen flex-col">
       <Navbar
         user={user}
         sessionLoading={sessionLoading}
