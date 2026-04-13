@@ -1042,4 +1042,4 @@ def retrain_model():
 
 # 🔚 App runner — always keep this LAST
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5001)

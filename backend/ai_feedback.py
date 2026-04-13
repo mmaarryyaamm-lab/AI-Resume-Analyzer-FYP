@@ -51,35 +51,47 @@ def generate_ai_suggestions(resume_text, jd_text=None):
         if not ner_data.get(section):
             suggestions.append(f"⚠️ Your resume is missing a section for {section.title()}.")
 
-    # ✅ 3. Weak phrases
+    # ✅ 3. Weak phrases — with specific rewrite instructions
     for phrase, tip in weak_phrases.items():
         if phrase in resume_text.lower():
-            suggestions.append(f"💡 Weak phrase detected: '{phrase}' → Suggestion: {tip}")
+            suggestions.append(f"REWRITE: Replace the weak phrase '{phrase}' with concrete, results-oriented language. {tip}")
 
     # ✅ 4. Strong action verbs
     doc = nlp(resume_text.lower()) if nlp is not None else None
     tokens = [token.text for token in doc] if doc is not None else resume_text.lower().split()
     used_verbs = [v for v in strong_action_verbs if v in tokens]
     if not used_verbs:
-        suggestions.append("⚠️ No strong action verbs found. Start bullet points with verbs like 'developed', 'led', 'implemented'.")
+        suggestions.append("REWRITE: Rewrite bullet points to start with strong action verbs like 'Developed', 'Led', 'Implemented', 'Designed', 'Managed', 'Analyzed', 'Optimized', 'Delivered'. Each bullet should begin with a powerful verb.")
 
     # ✅ 5. Passive voice (simple)
     passive_aux = ["was", "were", "been", "being", "is", "are", "be"]
     passive_count = sum(1 for token in doc if token.text in passive_aux and token.pos_ == "AUX") if doc is not None else 0
     if passive_count > 5:
-        suggestions.append("🔄 Your resume may overuse passive voice. Try to use active voice with strong verbs.")
+        suggestions.append("REWRITE: Convert passive voice sentences to active voice. For example, change 'was responsible for managing' to 'Managed', change 'was involved in developing' to 'Developed'.")
 
-    # ✅ 6. Grammar issues (skip if tool unavailable)
+    # ✅ 6. Vague bullet point detection
+    vague_indicators = ["various", "multiple", "several", "some", "many", "etc", "things", "stuff", "duties included", "responsibilities include"]
+    found_vague = [v for v in vague_indicators if v in resume_text.lower()]
+    if found_vague:
+        suggestions.append(f"REWRITE: Replace vague words ({', '.join(found_vague)}) with specific details — numbers, tools, outcomes, or measurable impact.")
+
+    # ✅ 7. Quantification check
+    import re
+    numbers_found = re.findall(r'\d+[%+]?', resume_text)
+    if len(numbers_found) < 3:
+        suggestions.append("REWRITE: Add quantifiable achievements where possible. For example, instead of 'improved performance', write 'improved performance by 25%'. Add metrics like team size, project scope, revenue impact, or time saved.")
+
+    # ✅ 8. Grammar issues (skip if tool unavailable)
     if tool is not None:
         try:
             matches = tool.check(resume_text[:1000])  # Limit for speed
             if matches:
-                issues = [f"✏️ {match.message} (e.g., \"{match.context}\")" for match in matches[:5]]
-                suggestions.append("🧹 Grammar suggestions:\n" + "\n".join(issues))
+                issues = [f"Fix: {match.message}" for match in matches[:5]]
+                suggestions.append("REWRITE: Fix these grammar issues:\n" + "\n".join(issues))
         except Exception:
             pass
 
-    # ✅ 7. JD vs Resume skill match
+    # ✅ 9. JD vs Resume skill match — with actionable rewrite instructions
     if jd_text:
         jd_doc = nlp(jd_text.lower()) if nlp is not None else None
         jd_keywords = set([token.text for token in jd_doc if token.pos_ in ['NOUN', 'PROPN', 'ADJ'] and len(token.text) > 2]) if jd_doc is not None else set(jd_text.lower().split())
@@ -90,12 +102,19 @@ def generate_ai_suggestions(resume_text, jd_text=None):
         missing = jd_keywords - resume_keywords
 
         if matched:
-            suggestions.append(f"✅ Matched job-related keywords: {', '.join(list(matched)[:5])}")
+            suggestions.append(f"KEEP: These keywords already match the job description: {', '.join(list(matched)[:8])}. Ensure they remain prominent.")
         if missing:
-            suggestions.append(f"🧠 Consider including: {', '.join(list(missing)[:5])}")
+            missing_list = list(missing)[:8]
+            suggestions.append(f"REWRITE: Naturally incorporate these job-relevant keywords into existing bullet points where the candidate's experience supports them: {', '.join(missing_list)}. Do NOT fabricate experience — only weave in keywords that align with what is already described.")
 
-    # ✅ 8. Final result
+    # ✅ 10. Summary/objective check
+    summary_indicators = ["summary", "objective", "profile", "about"]
+    has_summary = any(ind in resume_text.lower()[:500] for ind in summary_indicators)
+    if has_summary:
+        suggestions.append("REWRITE: Strengthen the summary/objective section to be tailored and impactful. It should clearly state the candidate's value proposition and align with the target role.")
+
+    # ✅ 11. Final result
     if not suggestions:
-        return "✅ Your resume is well-structured and uses strong language."
+        return "Your resume is well-structured and uses strong language. Minor improvements may include adding more quantifiable metrics to bullet points."
 
     return "\n".join(suggestions)

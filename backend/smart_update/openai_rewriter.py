@@ -378,20 +378,28 @@ def rewrite_sections_with_openai(
 
 
 def _build_apply_suggestions_system_prompt() -> str:
-    return """You are an expert resume editor. Your ONLY job is to apply the provided suggestions to the resume content.
+    return """You are an expert resume editor and ATS optimization specialist.
 
-CRITICAL FORMATTING RULES — you MUST follow these exactly:
-- Preserve the EXACT formatting of the original resume: bullet style (dashes, dots, asterisks), indentation, line breaks, spacing, heading casing, and paragraph structure.
-- If the original uses "- " for bullets, the output MUST use "- " for bullets. If it uses "* ", use "* ". If it uses "• ", use "• ".
+Your job is to REWRITE the resume section content based on the provided suggestions. You must make real, substantive changes — not just formatting or punctuation tweaks.
+
+REWRITING RULES:
+- Actually rewrite bullet points to be stronger, more impactful, and more specific. Replace weak phrases with strong action verbs and quantified achievements.
+- If a suggestion says a phrase is weak (e.g., "hardworking", "team player", "good communication"), rewrite the sentence that contains it to be concrete and results-oriented.
+- If a suggestion says to include certain keywords, naturally weave them into existing bullet points where the candidate's experience supports it. Do NOT fabricate experience.
+- If a suggestion says to use strong action verbs, rewrite bullet points to start with verbs like "Developed", "Led", "Implemented", "Designed", "Managed", "Analyzed", "Optimized", "Delivered".
+- If passive voice is flagged, rewrite those sentences in active voice.
+- Make each bullet point specific, measurable, and achievement-oriented where possible.
+
+CRITICAL FORMATTING PRESERVATION RULES:
+- Preserve the EXACT formatting template of the original: bullet style (dashes, dots, asterisks, bullet characters), indentation levels, line break patterns, heading casing, and paragraph structure.
+- If the original uses "- " for bullets, the output MUST use "- " for bullets. If "* ", use "* ". If "• ", use "• ".
 - Do NOT add, remove, or change any section headings.
 - Do NOT reorder content or merge sections.
-- Do NOT add information, skills, tools, technologies, or experience that is NOT already present in the resume.
-- Do NOT invent dates, company names, job titles, or achievements.
-- Only modify the specific text that the suggestions target. Leave everything else EXACTLY as-is.
-- If a suggestion cannot be applied without inventing information, skip it.
-- Preserve all whitespace patterns: if the original has blank lines between sections, keep them. If bullets have no blank lines between them, keep that too.
+- Do NOT invent new experience, skills, tools, technologies, dates, company names, or job titles that are not already present or directly supported by the resume.
+- Preserve all whitespace patterns: blank lines between sections stay, no-blank-lines between bullets stay.
+- The number of bullet points should stay the same. Rewrite each one in place.
 
-Your output must look like a direct edit of the original — a human comparing them should see ONLY the targeted improvements, nothing else changed."""
+Your output must be a meaningfully improved version of the original — a human comparing them should see noticeably better wording, stronger verbs, and clearer achievements, while the layout and structure remain identical."""
 
 
 def _build_apply_suggestions_user_prompt(
@@ -401,14 +409,27 @@ def _build_apply_suggestions_user_prompt(
 ) -> str:
     prompt_parts = []
 
-    prompt_parts.append('SUGGESTIONS TO APPLY:\n')
+    prompt_parts.append('AI SUGGESTIONS TO IMPLEMENT:\n')
     prompt_parts.append(suggestions.strip())
     prompt_parts.append('')
 
     if job_description:
-        prompt_parts.append(f'TARGET JOB DESCRIPTION (for context only — do NOT add skills or tools from this):\n{job_description[:1500]}\n')
+        prompt_parts.append(f'TARGET JOB DESCRIPTION (use this to guide keyword integration and tailoring — but do NOT fabricate skills the candidate does not have):\n{job_description[:1500]}\n')
 
-    prompt_parts.append('RESUME SECTIONS (apply the suggestions to these while preserving exact formatting):\n')
+    prompt_parts.append(
+        """REWRITING INSTRUCTIONS:
+Based on the suggestions above, rewrite the resume sections below. For each section:
+1. Replace any weak/vague phrases with specific, results-oriented language.
+2. Start bullet points with strong action verbs (Developed, Led, Implemented, Designed, Managed, Analyzed, etc.).
+3. Convert passive voice to active voice.
+4. Naturally incorporate relevant keywords from the job description where the candidate's existing experience supports it.
+5. Make achievements more specific and measurable where possible (add context about scale, impact, or outcome).
+6. Keep the EXACT same formatting: same bullet style, same indentation, same number of bullet points, same line break patterns.
+
+"""
+    )
+
+    prompt_parts.append('RESUME SECTIONS TO REWRITE:\n')
 
     for sec in sections:
         if sec.get('id') == 'personal_info':
@@ -422,11 +443,12 @@ def _build_apply_suggestions_user_prompt(
         prompt_parts.append('')
 
     prompt_parts.append(
-        """Apply ONLY the suggestions listed above. For each section you modify, return the COMPLETE updated section content preserving exact original formatting.
+        """Rewrite the sections above based on the suggestions. Make real, substantive improvements to the wording — not just punctuation or formatting changes.
+For each section you rewrite, return the COMPLETE updated section content preserving the exact original formatting template (bullet style, indentation, line breaks).
 
-Return your response as a JSON object where each key is the section id and the value is the updated content string.
-Only include sections that you actually changed. Do not include unchanged sections.
-Do not include personal_info.
+Return your response as a JSON object where each key is the section id and the value is the rewritten content string.
+Only include sections that you meaningfully improved. Do not include unchanged sections.
+Do not include personal_info. Education sections usually need no rewrite unless clearly weak.
 Return ONLY valid JSON."""
     )
 
@@ -439,7 +461,7 @@ def apply_suggestions_with_openai(
     job_description: str = '',
     model: str = 'gpt-4o-mini',
 ) -> Dict[str, str]:
-    """Apply specific AI suggestions to resume sections while strictly preserving formatting."""
+    """Rewrite resume sections based on AI suggestions while preserving formatting template."""
     if not suggestions or not suggestions.strip():
         return {}
 
@@ -460,7 +482,7 @@ def apply_suggestions_with_openai(
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_prompt},
             ],
-            temperature=0.15,  # Very low — we want precise edits, not creative rewrites
+            temperature=0.3,  # Balanced — substantive rewrites while staying faithful to original
             max_tokens=4000,
             response_format={'type': 'json_object'},
         )
