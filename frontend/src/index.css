@@ -47,6 +47,22 @@
   }
 }
 
+/* ── ElevenLabs ConvAI Widget Theme ── */
+elevenlabs-convai {
+  --el-color-primary: #10b981;
+  --el-color-primary-hover: #059669;
+  --el-color-background: #0f172a;
+  --el-color-surface: #1e293b;
+  --el-color-text: #f1f5f9;
+  --el-color-text-secondary: #94a3b8;
+  --el-color-border: #334155;
+  --el-color-ring: #10b981;
+  --el-border-radius: 16px;
+  --el-button-background: #10b981;
+  --el-button-background-hover: #059669;
+  --el-button-shadow: 0 0 24px rgba(16,185,129,0.35), 0 4px 20px rgba(0,0,0,0.4);
+}
+
 html, body, #root {
   min-height: 100vh;
 }

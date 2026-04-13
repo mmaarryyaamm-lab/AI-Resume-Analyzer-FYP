@@ -82,8 +82,8 @@ function StepIndicator({ steps, currentStep }) {
             <div className={cn(
               'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all',
               done ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-              active ? 'bg-blue-50 text-blue-700 border border-blue-200 animate-pulse' :
-              'bg-slate-50 text-slate-400 border border-slate-200'
+                active ? 'bg-blue-50 text-blue-700 border border-blue-200 animate-pulse' :
+                  'bg-slate-50 text-slate-400 border border-slate-200'
             )}>
               {done ? <Check className="h-3 w-3" /> : active ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="h-3 w-3 flex items-center justify-center text-[10px] font-bold">{i + 1}</span>}
               {step.label}
@@ -166,7 +166,7 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    try { localStorage.setItem(WORKSPACE_KEY, JSON.stringify({ jobDescription, uploadResult, analysis, aiFeedback, nerData, rewriteResult, smartResume, acceptedSections })) } catch {}
+    try { localStorage.setItem(WORKSPACE_KEY, JSON.stringify({ jobDescription, uploadResult, analysis, aiFeedback, nerData, rewriteResult, smartResume, acceptedSections })) } catch { }
   }, [jobDescription, uploadResult, analysis, aiFeedback, nerData, rewriteResult, smartResume, acceptedSections])
 
   const keywordSummary = useMemo(() => inferKeywords(analysis), [analysis])
@@ -185,9 +185,9 @@ export default function Home() {
 
   function syncBuilderWorkspace(sr = smartResume, na = acceptedSections) {
     const sections = sr?.mappings?.map((m) => ({ id: m.original_id, heading: m.original_heading, original: m.original_content || '', draft: na.includes(m.original_id) && m.has_changes ? m.improved_content || m.original_content || '' : m.original_content || '' })) || []
-    try { localStorage.setItem(WORKSPACE_KEY, JSON.stringify({ jobDescription, uploadResult, analysis, aiFeedback, nerData, rewriteResult, smartResume: sr, acceptedSections: na, builderSections: sections, builderOriginalText: sr?.full_text || uploadResult?.resume_text || '' })) } catch {}
+    try { localStorage.setItem(WORKSPACE_KEY, JSON.stringify({ jobDescription, uploadResult, analysis, aiFeedback, nerData, rewriteResult, smartResume: sr, acceptedSections: na, builderSections: sections, builderOriginalText: sr?.full_text || uploadResult?.resume_text || '' })) } catch { }
   }
-  function clearWorkspace() { setResumeFile(null); setError(''); setNotice(''); setUploadResult(null); setAnalysis(null); setAiFeedback(''); setNerData(null); setRewriteResult(null); setSmartResume(null); setAcceptedSections([]); setTrainingSummary(null); try { localStorage.removeItem(WORKSPACE_KEY); sessionStorage.removeItem('preview_original'); sessionStorage.removeItem('preview_updated'); sessionStorage.removeItem('preview_summary') } catch {}; if (fileInputRef.current) fileInputRef.current.value = '' }
+  function clearWorkspace() { setResumeFile(null); setError(''); setNotice(''); setUploadResult(null); setAnalysis(null); setAiFeedback(''); setNerData(null); setRewriteResult(null); setSmartResume(null); setAcceptedSections([]); setTrainingSummary(null); try { localStorage.removeItem(WORKSPACE_KEY); sessionStorage.removeItem('preview_original'); sessionStorage.removeItem('preview_updated'); sessionStorage.removeItem('preview_summary') } catch { }; if (fileInputRef.current) fileInputRef.current.value = '' }
   async function withLoading(name, task) { setLoading(name); setError(''); setNotice(''); try { await task() } catch (e) { setError(e.message || 'Something went wrong') } finally { setLoading('') } }
 
   async function handleUploadAndParse() {
@@ -263,7 +263,7 @@ export default function Home() {
   async function handleEntityExtraction() { if (!resumeFile) { setError('Upload a resume first.'); return }; await withLoading('ner', async () => { const r = await extractNer(resumeFile); setNerData(r); setNotice('Entity extraction complete.') }) }
   async function handleRewriteBullets() { if (!resumeFile) { setError('Upload a resume first.'); return }; await withLoading('rewrite', async () => { const r = await rewriteResume(resumeFile); setRewriteResult(r); setNotice('Quick rewrite complete.') }) }
   function handleToggleSection(sid) { const na = acceptedSections.includes(sid) ? acceptedSections.filter((i) => i !== sid) : [...acceptedSections, sid]; setAcceptedSections(na); syncBuilderWorkspace(smartResume, na) }
-  function handlePreview() { const ot = smartResume?.full_text || uploadResult?.resume_text || ''; const ut = improvedText || ot; if (!ot || !ut) { setError('No resume to preview.'); return }; try { sessionStorage.setItem('preview_original', ot); sessionStorage.setItem('preview_updated', ut); sessionStorage.setItem('preview_summary', JSON.stringify({ changedSections: changedSections.length, acceptedSections: acceptedSections.length, missingKeywords: keywordSummary.missing.length })) } catch {}; navigate('/preview', { state: { originalText: ot, updatedText: ut } }) }
+  function handlePreview() { const ot = smartResume?.full_text || uploadResult?.resume_text || ''; const ut = improvedText || ot; if (!ot || !ut) { setError('No resume to preview.'); return }; try { sessionStorage.setItem('preview_original', ot); sessionStorage.setItem('preview_updated', ut); sessionStorage.setItem('preview_summary', JSON.stringify({ changedSections: changedSections.length, acceptedSections: acceptedSections.length, missingKeywords: keywordSummary.missing.length })) } catch { }; navigate('/preview', { state: { originalText: ot, updatedText: ut } }) }
   async function handleSmartDownload(fmt) { if (!smartResume?.mappings?.length) { setError('Upload and process your resume first.'); return }; await withLoading('download', async () => { const blob = await smartDownloadResume({ fileName: smartResume.file_name, fileType: smartResume.file_type, mappings: smartResume.mappings, acceptedSections, originalText: smartResume.full_text || uploadResult?.resume_text || '', outputFormat: fmt }); downloadBlob(blob, fmt === 'docx' ? 'resume_improved.docx' : 'resume_improved.pdf'); setNotice(`${fmt.toUpperCase()} downloaded successfully!`) }) }
   async function handleRetrainModel() { await withLoading('retrain', async () => { const r = await retrainAtsModel(); setTrainingSummary(r?.summary || null); setNotice('Model retrained.') }) }
   function handleDrop(e) { e.preventDefault(); setDragActive(false); const f = e.dataTransfer.files?.[0]; if (f && (f.name.endsWith('.pdf') || f.name.endsWith('.docx'))) setResumeFile(f) }
@@ -280,10 +280,10 @@ export default function Home() {
     <main className="flex-1">
       {/* ═══════════ HERO ═══════════ */}
       <div ref={heroRef} className="relative">
-        <AuroraBackground className="min-h-[80vh] flex items-center">
+        <AuroraBackground className="min-h-[80vh] flex items-center justify-center">
           <GridPattern className="z-[2]" />
-          <motion.div style={{ y: heroY, opacity: heroOpacity }} className="mx-auto max-w-6xl px-4 sm:px-6 py-20">
-            <div className="max-w-3xl">
+          <motion.div style={{ y: heroY, opacity: heroOpacity }} className="w-full mx-auto max-w-6xl px-4 sm:px-6 py-20">
+            <div className="max-w-3xl mx-auto text-center flex flex-col items-center">
               <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }}>
                 <Badge variant="default" className="mb-6 text-sm px-4 py-1.5 shadow-lg shadow-emerald-500/10">
                   <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Resume workspace
@@ -297,11 +297,11 @@ export default function Home() {
                 </BlurIn>
               </h1>
               <BlurIn delay={1.2}>
-                <p className="mt-6 text-lg sm:text-xl text-slate-500 leading-relaxed max-w-xl">
+                <p className="mt-6 text-lg sm:text-xl text-slate-500 leading-relaxed max-w-xl mx-auto">
                   Upload your resume, compare it to a job description, and let AI rewrite it — all while preserving your original formatting.
                 </p>
               </BlurIn>
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.6, duration: 0.6 }} className="mt-8 flex flex-wrap gap-4">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.6, duration: 0.6 }} className="mt-8 flex flex-wrap gap-4 justify-center">
                 <Button size="lg" onClick={() => document.getElementById('workspace')?.scrollIntoView({ behavior: 'smooth' })} className="text-base shadow-xl shadow-emerald-500/20">
                   <Upload className="h-5 w-5" /> Get started free
                 </Button>
@@ -309,7 +309,7 @@ export default function Home() {
                   How it works <ArrowRight className="h-4 w-4" />
                 </Button>
               </motion.div>
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2, duration: 0.8 }} className="mt-10 flex flex-wrap gap-3">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2, duration: 0.8 }} className="mt-10 flex flex-wrap gap-3 justify-center">
                 {['ATS-optimized', 'AI-powered rewriting', 'Format preserved'].map((t) => (
                   <span key={t} className="inline-flex items-center gap-1.5 rounded-full bg-white/60 backdrop-blur-sm border border-slate-200/50 px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm">
                     <CheckCircle2 className="h-3 w-3 text-emerald-500" /> {t}
@@ -623,6 +623,25 @@ export default function Home() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* ──────── ELEVENLABS VOICE WIDGET ──────── */}
+          <div
+            style={{
+              position: 'fixed',
+              bottom: '24px',
+              right: '24px',
+              zIndex: 9999,
+              '--el-color-primary': '#10b981',
+              '--el-color-primary-hover': '#059669',
+              '--el-color-text': '#f8fafc',
+              '--el-color-background': '#0f172a',
+              '--el-color-border': '#1e293b',
+              '--el-color-ring': '#10b981',
+              '--el-border-radius': '16px',
+            }}
+          >
+            <elevenlabs-convai agent-id="agent_9101kp43xvs5fmx9p6dfr4cgykzm" />
+          </div>
 
           {/* ──────── ADVANCED TOOLS ──────── */}
           <FadeInOnScroll delay={0.15}>
